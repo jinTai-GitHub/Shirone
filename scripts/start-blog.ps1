@@ -121,6 +121,22 @@ if ($ResolvedContentDir) {
 	Write-Warn2 "可用 -ContentDir <路径> 显式指定内容仓位置。"
 }
 
+# 站点可能部署在子路径下（内容仓 config/site.yaml 的 base），本地预览地址要跟着带上：
+# 例如 GitHub Pages 项目页对应 base: "/Shirone/"，本地就是 http://localhost:4321/Shirone/
+$SiteBase = "/"
+if ($ResolvedContentDir) {
+	$SiteYaml = Join-Path $ResolvedContentDir "config/site.yaml"
+	if (Test-Path -LiteralPath $SiteYaml) {
+		$BaseMatch = Select-String -Path $SiteYaml -Pattern '^\s*base:\s*"?([^"#\s]+)"?' |
+			Select-Object -First 1
+		if ($BaseMatch) { $SiteBase = $BaseMatch.Matches[0].Groups[1].Value }
+	}
+}
+if (-not $SiteBase.StartsWith("/")) { $SiteBase = "/$SiteBase" }
+if (-not $SiteBase.EndsWith("/")) { $SiteBase = "$SiteBase/" }
+$PreviewUrl = "http://localhost:$Port$SiteBase"
+if ($SiteBase -ne "/") { Write-Info "站点子路径：$SiteBase（来自 site.yaml 的 base）" }
+
 # ── 1) 物化同步内容 ─────────────────────────────────────────────────────
 if (-not $SkipSync) {
 	Write-Step "同步内容：$Pnpm content:sync"
@@ -140,7 +156,7 @@ if ($Watch) {
 
 # ── 3) 启动开发服务器（前台阻塞直到 Ctrl+C）──────────────────────────────
 Write-Step "启动开发服务器：$Pnpm dev --port $Port"
-Write-Info "预览地址：http://localhost:$Port/"
+Write-Info "预览地址：$PreviewUrl"
 Write-Info "按 Ctrl+C 停止。"
 Write-Host ""
 
