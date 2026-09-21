@@ -72,3 +72,19 @@ artifacts/lighthouse/*
 
 # generated AI skills plugin packages
 artifacts/shirone-ai-*
+
+# content repository (materialized by `pnpm content:sync`)
+# These paths are owned by the private content repository. `content:sync` writes
+# them into the working tree before every dev/build run, so they must stay out of
+# version control: otherwise every sync shows up as a dirty tree, and personal
+# posts, data and assets would be published with the public theme source.
+/src/content/
+/src/data/*.ts
+/src/user/user-config.ts
+/src/config/FooterConfig.html
+/src/assets/images/
+/public/images/
+/public/assets/banner/
+/public/assets/music/
+/public/assets/projects/
+/public/assets/anime/*.webp
