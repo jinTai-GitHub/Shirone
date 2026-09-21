@@ -100,6 +100,14 @@ jobs:
             echo "::error::CONTENT_REPO_TOKEN 为空。请在【代码仓】Settings -> Secrets and variables -> Actions 中新建名为 CONTENT_REPO_TOKEN 的 secret（注意不要加到内容仓）。"
             exit 1
           fi
+          # 只输出「类型前缀」和「长度」这类固定/非敏感信息，足以判定是不是粘错了内容。
+          # 刻意不打印任何可还原令牌的片段。
+          case "$TOKEN" in
+            github_pat_*) echo "token 类型：fine-grained（github_pat_ 前缀）" ;;
+            ghp_*)        echo "token 类型：classic（ghp_ 前缀）" ;;
+            *)            echo "::warning::token 既不是 github_pat_ 也不是 ghp_ 开头——很可能粘贴的不是令牌本身（例如粘成了令牌名称、URL，或带上了引号）。" ;;
+          esac
+          echo "token 长度：${#TOKEN} 字符（fine-grained 通常 90+ 字符；明显偏差说明复制时漏字符，或多带了空格/换行）"
           code=$(curl -s -o /dev/null -w '%{http_code}' \
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/vnd.github+json" \
