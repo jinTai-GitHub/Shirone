@@ -88,6 +88,31 @@ jobs:
       - name: Checkout theme
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      # 先自检再 checkout：把「secret 没配」和「token 没权限」这两种失败区分开，
+      # 并直接打印 GitHub API 的返回码，省去翻日志猜原因。
+      - name: Verify content repository access
+        env:
+          TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
+          REPO: ${{ env.CONTENT_REPOSITORY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::CONTENT_REPO_TOKEN 为空。请在【代码仓】Settings -> Secrets and variables -> Actions 中新建名为 CONTENT_REPO_TOKEN 的 secret（注意不要加到内容仓）。"
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO")
+          echo "GET /repos/$REPO -> HTTP $code"
+          case "$code" in
+            200) echo "✓ token 可以读取 $REPO" ;;
+            401) echo "::error::token 无效或已过期（HTTP 401）。请重新生成 PAT 并更新 secret。"; exit 1 ;;
+            403) echo "::error::token 被拒绝（HTTP 403）。可能是 token 权限不足或被组织策略限制。"; exit 1 ;;
+            404) echo "::error::token 看不到 $REPO（HTTP 404）。最常见原因：fine-grained token 的 Repository access 没有勾选 my-blog-content，或权限里 Contents 未设为 Read。"; exit 1 ;;
+            *)   echo "::error::读取 $REPO 失败（HTTP $code）。"; exit 1 ;;
+          esac
+
       - name: Checkout content
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
