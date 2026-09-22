@@ -82,16 +82,14 @@ jobs:
         working-directory: theme
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      # 第一关：目录结构、keep 冲突、写入构建期生成物路径等契约问题，
-      # 外加 config/*.yaml 的类型校验（拼错的键、越界的枚举都会在这里失败）。
-      - name: Validate content structure and config
-        working-directory: theme
-        env:
-          CONTENT_DIR: ${{ github.workspace }}/content
-        run: pnpm content:validate
-
-      # 第二关：物化后用 Astro 自己的 collection schema 校验 frontmatter。
-      - name: Validate frontmatter schemas
+      # 先真实物化一次内容。
+      # 主题源码里 src/types/*.ts、src/utils/*.ts、src/config/musicConfig.ts 会
+      # `import ... from "../data/*.ts"`，而 src/data/*.ts 属于内容仓——解耦后
+      # 不在代码仓中跟踪，全新 checkout 里根本不存在。所以必须先 sync 把数据文件
+      # 落到磁盘，之后的类型检查才有东西可解析；否则 content:validate（= sync
+      # --dry-run，绝不写盘）必然报 TS2307 Cannot find module '../data/xxx.ts'。
+      # Actions 工作区是一次性的，这里的物化不会污染任何仓库。
+      - name: Materialize content
         working-directory: theme
         env:
           CONTENT_DIR: ${{ github.workspace }}/content
@@ -99,7 +97,22 @@ jobs:
           set -euo pipefail
           pnpm content:sync
           node scripts/icons/generate-local-icons.mjs
-          pnpm exec astro sync
+
+      # 第一关：目录结构、keep 冲突、写入构建期生成物路径等契约问题，
+      # 外加 config/*.yaml 的类型校验（拼错的键、越界的枚举都会在这里失败）。
+      # 此时 src/data/*.ts 已就位，类型图可以完整解析。
+      - name: Validate content structure and config
+        working-directory: theme
+        env:
+          CONTENT_DIR: ${{ github.workspace }}/content
+        run: pnpm content:validate
+
+      # 第二关：用 Astro 自己的 collection schema 校验 frontmatter。
+      - name: Validate frontmatter schemas
+        working-directory: theme
+        env:
+          CONTENT_DIR: ${{ github.workspace }}/content
+        run: pnpm exec astro sync
 
       - name: Summarize
         if: always()
